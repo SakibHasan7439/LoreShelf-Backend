@@ -1,6 +1,7 @@
 import { Prisma } from '../../generated/prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../utils/app-error';
+import { cloudinaryCoverService } from '../uploads/covers.service';
 import type { CreateLibraryEntryInput, LibraryListQuery, UpdateLibraryEntryInput } from './library.types';
 
 const libraryEntrySelect = {
@@ -52,15 +53,30 @@ function isPrismaCode(error: unknown, code: string): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 }
 
+export function calculateProgressPercentage(currentPage: number | null, pageCount: number | null): number | null {
+  if (currentPage === null || pageCount === null || pageCount <= 0) return null;
+  return Math.min(100, Math.max(0, (currentPage / pageCount) * 100));
+}
+
+function withProgress<T extends { currentPage: number | null; book: { pageCount: number | null } }>(entry: T) {
+  return {
+    ...entry,
+    progressPercentage: calculateProgressPercentage(entry.currentPage, entry.book.pageCount),
+  };
+}
+
 const entryNotFound = () => new AppError(404, 'LIBRARY_ENTRY_NOT_FOUND', 'Library entry not found.');
 
-export function createLibraryService(database = prisma) {
+export function createLibraryService(
+  database = prisma,
+  verifyUserCover: (userId: string, coverUrl: string) => Promise<void> = (userId, coverUrl) => cloudinaryCoverService.verifyUserCover(userId, coverUrl),
+) {
   async function create(userId: string, input: CreateLibraryEntryInput) {
     const book = await database.book.findUnique({ where: { id: input.bookId }, select: { id: true } });
     if (!book) throw new AppError(404, 'BOOK_NOT_FOUND', 'Catalog book not found.');
 
     try {
-      return await database.userBook.create({
+      const entry = await database.userBook.create({
         data: {
           userId,
           bookId: input.bookId,
@@ -69,6 +85,7 @@ export function createLibraryService(database = prisma) {
         },
         select: libraryEntrySelect,
       });
+      return withProgress(entry);
     } catch (error) {
       if (isPrismaCode(error, 'P2002')) {
         throw new AppError(409, 'DUPLICATE_LIBRARY_ENTRY', 'This book is already in your library.');
@@ -107,7 +124,7 @@ export function createLibraryService(database = prisma) {
       }),
       database.userBook.count({ where }),
     ]);
-    return { items, pagination: { page: query.page, limit: query.limit, total } };
+    return { items: items.map(withProgress), pagination: { page: query.page, limit: query.limit, total } };
   }
 
   async function get(userId: string, userBookId: string) {
@@ -116,16 +133,44 @@ export function createLibraryService(database = prisma) {
       select: libraryEntrySelect,
     });
     if (!entry) throw entryNotFound();
-    return entry;
+    return withProgress(entry);
   }
 
   async function update(userId: string, userBookId: string, input: UpdateLibraryEntryInput) {
-    const result = await database.userBook.updateMany({
-      where: { id: userBookId, userId },
-      data: input,
-    });
-    if (result.count === 0) throw entryNotFound();
-    return get(userId, userBookId);
+    if (input.customCoverUri) {
+      const ownedEntry = await database.userBook.findFirst({ where: { id: userBookId, userId }, select: { id: true } });
+      if (!ownedEntry) throw entryNotFound();
+      await verifyUserCover(userId, input.customCoverUri);
+    }
+    return database.$transaction(async (tx) => {
+      const existing = await tx.userBook.findFirst({
+        where: { id: userBookId, userId },
+        select: { readingStatus: true },
+      });
+      if (!existing) throw entryNotFound();
+
+      const data: UpdateLibraryEntryInput = { ...input };
+      if (input.readingStatus !== undefined && input.readingStatus !== existing.readingStatus) {
+        if (input.readingStatus === 'COMPLETED') {
+          if (!Object.hasOwn(input, 'finishedAt')) data.finishedAt = new Date();
+        } else {
+          data.finishedAt = null;
+        }
+      }
+
+      const result = await tx.userBook.updateMany({
+        where: { id: userBookId, userId },
+        data,
+      });
+      if (result.count === 0) throw entryNotFound();
+
+      const updated = await tx.userBook.findFirst({
+        where: { id: userBookId, userId },
+        select: libraryEntrySelect,
+      });
+      if (!updated) throw entryNotFound();
+      return withProgress(updated);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async function remove(userId: string, userBookId: string): Promise<void> {

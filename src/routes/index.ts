@@ -4,6 +4,9 @@ import { bookDiscoveryRouter } from '../modules/book-discovery/book-discovery.ro
 import { authRouter } from '../modules/auth/auth.routes';
 import { booksRouter } from '../modules/books/books.routes';
 import { libraryRouter } from '../modules/library/library.routes';
+import { readingRouter } from '../modules/reading/reading.routes';
+import { shelvesRouter } from '../modules/shelves/shelves.routes';
+import { uploadsRouter } from '../modules/uploads/uploads.routes';
 import { healthRouter } from './health.routes';
 
 /**
@@ -17,3 +20,6 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/books', bookDiscoveryRouter);
 apiRouter.use('/books', booksRouter);
 apiRouter.use('/library', libraryRouter);
+apiRouter.use('/reading', readingRouter);
+apiRouter.use('/shelves', shelvesRouter);
+apiRouter.use('/uploads', uploadsRouter);

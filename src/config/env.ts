@@ -48,6 +48,9 @@ const rawEnvSchema = z.object({
   JWT_ACCESS_SECRET: z.string().trim().min(43, 'JWT_ACCESS_SECRET must contain at least 43 characters.').optional(),
   JWT_ISSUER: z.string().trim().min(1).optional(),
   JWT_AUDIENCE: z.string().trim().min(1).optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().trim().min(1).optional(),
+  CLOUDINARY_API_KEY: z.string().trim().min(1).optional(),
+  CLOUDINARY_API_SECRET: z.string().trim().min(1).optional(),
 }).superRefine((value, ctx) => {
   const authValues = [value.JWT_ACCESS_SECRET, value.JWT_ISSUER, value.JWT_AUDIENCE];
   if (authValues.some(Boolean) && authValues.some((item) => !item)) {
@@ -55,6 +58,10 @@ const rawEnvSchema = z.object({
   }
   if (value.NODE_ENV === 'production' && authValues.some((item) => !item)) {
     ctx.addIssue({ code: 'custom', path: ['JWT_ACCESS_SECRET'], message: 'JWT authentication settings are required in production.' });
+  }
+  const cloudinaryValues = [value.CLOUDINARY_CLOUD_NAME, value.CLOUDINARY_API_KEY, value.CLOUDINARY_API_SECRET];
+  if (cloudinaryValues.some(Boolean) && cloudinaryValues.some((item) => !item)) {
+    ctx.addIssue({ code: 'custom', path: ['CLOUDINARY_CLOUD_NAME'], message: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must be configured together.' });
   }
 });
 
@@ -82,6 +89,9 @@ function loadEnv(): {
   jwtAccessSecret: string | undefined;
   jwtIssuer: string | undefined;
   jwtAudience: string | undefined;
+  cloudinaryCloudName: string | undefined;
+  cloudinaryApiKey: string | undefined;
+  cloudinaryApiSecret: string | undefined;
 } {
   const parsed = rawEnvSchema.safeParse(process.env);
 
@@ -107,6 +117,9 @@ function loadEnv(): {
     jwtAccessSecret: parsed.data.JWT_ACCESS_SECRET,
     jwtIssuer: parsed.data.JWT_ISSUER,
     jwtAudience: parsed.data.JWT_AUDIENCE,
+    cloudinaryCloudName: parsed.data.CLOUDINARY_CLOUD_NAME,
+    cloudinaryApiKey: parsed.data.CLOUDINARY_API_KEY,
+    cloudinaryApiSecret: parsed.data.CLOUDINARY_API_SECRET,
   };
 }
 

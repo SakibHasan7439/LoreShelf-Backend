@@ -9,7 +9,7 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import { errorHandler } from '../../middlewares/error.middleware';
 import { AppError } from '../../utils/app-error';
 import { createLibraryRouter } from './library.routes';
-import { createLibraryService } from './library.service';
+import { calculateProgressPercentage, createLibraryService } from './library.service';
 import { createLibraryEntrySchema, libraryListQuerySchema, updateLibraryEntrySchema } from './library.types';
 
 const userIdA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -77,7 +77,11 @@ function fakeDatabase(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
-  return { database: delegates as unknown as PrismaClient, calls };
+  const database = {
+    ...delegates,
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({ userBook: delegates.userBook }),
+  };
+  return { database: database as unknown as PrismaClient, calls };
 }
 
 function authAs(userId: string): RequestHandler {
@@ -157,6 +161,7 @@ test('list scopes both item and count queries, searches titles/authors, and orde
   assert.deepEqual(findArgs.select.book.select.authors.orderBy, { position: 'asc' });
   assert.equal(JSON.stringify(findArgs.where).includes('author'), true);
   assert.equal(countArgs.where.userId, userIdA);
+  assert.equal(result.items[0]?.progressPercentage, null);
   assert.deepEqual(result.pagination, { page: 2, limit: 10, total: 1 });
 });
 
@@ -177,6 +182,61 @@ test('get, update, and delete scope by both entry ID and authenticated user ID',
   const missingState = fakeDatabase({ userBook: { findFirst: async () => null } });
   await assert.rejects(createLibraryService(missingState.database).get(userIdA, entryId),
     (error: unknown) => error instanceof AppError && error.statusCode === 404);
+});
+
+test('progress percentage handles missing page data and clamps at 100 percent', () => {
+  assert.equal(calculateProgressPercentage(0, 100), 0);
+  assert.equal(calculateProgressPercentage(25, 100), 25);
+  assert.equal(calculateProgressPercentage(150, 100), 100);
+  assert.equal(calculateProgressPercentage(null, 100), null);
+  assert.equal(calculateProgressPercentage(10, null), null);
+  assert.equal(calculateProgressPercentage(10, 0), null);
+});
+
+test('completion status sets finishedAt when absent and clears it when leaving COMPLETED', async () => {
+  let readingStatus = 'READING';
+  let finishedAt: Date | null = null;
+  const submittedUpdates: Array<Record<string, unknown>> = [];
+  const userBook = {
+    findFirst: async ({ select }: { select: Record<string, boolean> }) => {
+      if (Object.keys(select).length === 1 && select.readingStatus) return { readingStatus };
+      return { ...entry, readingStatus, finishedAt, book: catalogBook };
+    },
+    updateMany: async ({ data }: { data: Record<string, unknown> }) => {
+      submittedUpdates.push(data);
+      if (typeof data.readingStatus === 'string') readingStatus = data.readingStatus;
+      if (Object.hasOwn(data, 'finishedAt')) finishedAt = data.finishedAt as Date | null;
+      return { count: 1 };
+    },
+  };
+  const database = {
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({ userBook }),
+  } as unknown as PrismaClient;
+  const service = createLibraryService(database);
+
+  await service.update(userIdA, entryId, { readingStatus: 'COMPLETED' });
+  assert.ok((finishedAt as unknown) instanceof Date);
+  assert.ok((submittedUpdates[0]?.finishedAt as Date) instanceof Date);
+
+  await service.update(userIdA, entryId, { readingStatus: 'READING', finishedAt: new Date('2026-04-01T00:00:00.000Z') });
+  assert.equal(finishedAt, null);
+  assert.equal(submittedUpdates[1]?.finishedAt, null);
+});
+
+test('custom cover association is verified only for an owned library entry', async () => {
+  const state = fakeDatabase();
+  let verified: { userId: string; coverUrl: string } | undefined;
+  const service = createLibraryService(state.database, async (userId, coverUrl) => { verified = { userId, coverUrl }; });
+  const coverUrl = 'https://res.cloudinary.com/test/image/upload/cover.jpg';
+  await service.update(userIdA, entryId, { customCoverUri: coverUrl });
+  assert.deepEqual(verified, { userId: userIdA, coverUrl });
+
+  let verificationAttempted = false;
+  const missingState = fakeDatabase({ userBook: { findFirst: async () => null } });
+  const missingService = createLibraryService(missingState.database, async () => { verificationAttempted = true; });
+  await assert.rejects(missingService.update(userIdB, entryId, { customCoverUri: coverUrl }),
+    (error: unknown) => error instanceof AppError && error.statusCode === 404);
+  assert.equal(verificationAttempted, false);
 });
 
 test('authenticated routes ignore supplied userId, return the expected envelopes, and require auth', async () => {
