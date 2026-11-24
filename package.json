@@ -1,0 +1,47 @@
+{
+  "name": "loreshelf-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "REST API for the LoreShelf reading app",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "prisma generate && tsc -p tsconfig.json && node --test dist/modules/book-discovery/book-discovery.test.js dist/modules/books/manual-book.test.js dist/modules/auth/auth.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "argon2": "^0.45.2",
+    "cors": "2.8.6",
+    "dotenv": "18.0.10",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.5",
+    "helmet": "8.3.0",
+    "jose": "^6.2.18",
+    "pino": "10.4.0",
+    "pino-http": "11.0.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/node": "26.6.6",
+    "eslint": "10.15.0",
+    "prisma": "7.10.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0"
+  }
+}

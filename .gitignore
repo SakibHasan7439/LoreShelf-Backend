@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Prisma Client is generated from prisma/schema.prisma on install/build.
+# Run `npm run prisma:generate` after cloning if you skip `npm install`.
+src/generated/
+
+# Environment variables — never commit real credentials.
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,219 @@
+// LoreShelf — Prisma ORM 7 schema.
+// The datasource URL is configured in prisma.config.ts.
+
+generator client {
+  provider           = "prisma-client"
+  output             = "../src/generated/prisma"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookSource {
+  GOOGLE_BOOKS
+  OPEN_LIBRARY
+  ROKOMARI
+  WAFILIFE
+  MANUAL
+}
+
+enum Ownership {
+  WISHLIST
+  OWNED
+}
+
+enum ReadingStatus {
+  WANT_TO_READ
+  READING
+  COMPLETED
+  ON_HOLD
+}
+
+enum DiscoverySource {
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  FRIEND
+  OTHER
+}
+
+enum BookPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum CoverTheme {
+  EMERALD
+  MIDNIGHT
+  WINE
+  PLUM
+  CHARCOAL
+  OCHRE
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  name         String?    @db.VarChar(120)
+  email        String     @unique @db.VarChar(320)
+  passwordHash String?    @db.VarChar(255)
+  avatar       String?    @db.Text
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
+  books        UserBook[]
+  shelves      Shelf[]
+  refreshSessions RefreshSession[]
+
+  @@map("users")
+}
+
+model RefreshSession {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @db.Uuid
+  refreshTokenHash String          @unique @db.VarChar(64)
+  familyId         String          @db.Uuid
+  expiresAt        DateTime        @db.Timestamptz(6)
+  revokedAt        DateTime?       @db.Timestamptz(6)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(6)
+  lastUsedAt       DateTime?       @db.Timestamptz(6)
+  replacedBySessionId String?      @unique @db.Uuid
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy       RefreshSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  replaces         RefreshSession? @relation("SessionRotation")
+
+  @@index([userId, familyId])
+  @@index([familyId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+// A Book row represents one edition/record from a catalog source. Distinct
+// editions remain separate rows when their ISBN or provider identity differs.
+model Book {
+  id            String       @id @default(uuid()) @db.Uuid
+  title         String       @db.VarChar(500)
+  description   String?      @db.Text
+  genre         String?      @db.VarChar(120)
+  publisher     String?      @db.VarChar(255)
+  isbn10        String?      @unique @db.VarChar(10)
+  isbn13        String?      @unique @db.VarChar(13)
+  coverUrl      String?      @db.Text
+  publishedDate String?      @db.VarChar(32)
+  publishedYear Int?         @db.SmallInt
+  pageCount     Int?
+  language      String?      @db.VarChar(16)
+  edition       String?      @db.VarChar(255)
+  source        BookSource   @default(MANUAL)
+  externalId    String?      @db.VarChar(255)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(6)
+  authors       BookAuthor[]
+  userBooks     UserBook[]
+
+  // PostgreSQL permits multiple NULL externalIds, while preventing duplicate
+  // provider records when an external ID is present.
+  @@unique([source, externalId])
+  @@index([title])
+  @@index([publisher])
+  @@map("books")
+}
+
+model Author {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @db.VarChar(255)
+  normalizedName String  @unique @db.VarChar(255)
+  createdAt DateTime     @default(now()) @db.Timestamptz(6)
+  books     BookAuthor[]
+
+  @@index([name])
+  @@map("authors")
+}
+
+// Explicit join keeps author order from catalog results.
+model BookAuthor {
+  bookId   String @db.Uuid
+  authorId String @db.Uuid
+  position Int    @default(0)
+  book     Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, authorId])
+  @@unique([bookId, position])
+  @@index([authorId])
+  @@map("book_authors")
+}
+
+// User-specific library state. A shared catalog Book can be in many users'
+// libraries, but a given user can add a given edition only once.
+model UserBook {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @db.Uuid
+  bookId          String          @db.Uuid
+  ownership       Ownership       @default(WISHLIST)
+  readingStatus   ReadingStatus   @default(WANT_TO_READ)
+  personalNote    String?         @db.Text
+  isFavorite      Boolean         @default(false)
+  rating          Int?            @db.SmallInt
+  currentPage     Int?
+  addedAt         DateTime        @default(now()) @db.Timestamptz(6)
+  purchaseDate    DateTime?       @db.Date
+  purchasePrice   Decimal?        @db.Decimal(10, 2)
+  finishedAt      DateTime?       @db.Date
+  discoverySource DiscoverySource?
+  priority        BookPriority?
+  customCoverUri  String?         @db.Text
+  coverTheme      CoverTheme?
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(6)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book            @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  shelves         UserBookShelf[]
+
+  @@unique([userId, bookId])
+  @@unique([userId, id])
+  @@index([userId, readingStatus])
+  @@index([userId, ownership])
+  @@index([userId, isFavorite])
+  @@index([bookId])
+  @@map("user_books")
+}
+
+// Only user-created shelves are persisted. Built-in shelves and Favorites are
+// currently static/derived in the mobile app.
+model Shelf {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.Uuid
+  name           String          @db.VarChar(80)
+  normalizedName String          @db.VarChar(80)
+  tagline        String?         @db.VarChar(160)
+  description    String?         @db.Text
+  theme          Json?
+  icon           String?         @db.VarChar(32)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books          UserBookShelf[]
+
+  // Store a trimmed, locale-independent lowercase key in normalizedName so
+  // the database can enforce the mobile app's case-insensitive name rule.
+  @@unique([userId, normalizedName])
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@map("shelves")
+}
+
+model UserBookShelf {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  userBookId String   @db.Uuid
+  shelfId    String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  userBook   UserBook @relation(fields: [userId, userBookId], references: [userId, id], onDelete: Cascade)
+  shelf      Shelf    @relation(fields: [userId, shelfId], references: [userId, id], onDelete: Cascade)
+
+  @@unique([userBookId, shelfId])
+  @@index([userId])
+  @@index([shelfId])
+  @@map("user_book_shelves")
+}
