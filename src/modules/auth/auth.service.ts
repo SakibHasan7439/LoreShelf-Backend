@@ -13,15 +13,12 @@ import {
 } from './auth.tokens';
 
 const passwordHashOptions = { type: argon2.argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
+// A fixed non-secret hash keeps unknown/passwordless-account checks comparable
+// to the normal Argon2 verification path without generating a hash on demand.
+const dummyPasswordHash = '$argon2id$v=19$m=19456,t=2,p=1$9q6ZW5gXEZHW+jeVLFcvbg$ADEaaTFRuWiweCPT4dVFOr/uJN2WWAkwEMed45fGdb8';
 const safeUserSelect = { id: true, name: true, email: true, avatar: true, createdAt: true } as const;
 const invalidCredentials = () => new AppError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
 const invalidRefreshToken = () => new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is invalid or expired.');
-
-let dummyHashPromise: Promise<string> | undefined;
-function getDummyHash(): Promise<string> {
-  dummyHashPromise ??= argon2.hash('loreShelf-invalid-user-password-check', passwordHashOptions);
-  return dummyHashPromise;
-}
 
 function isPrismaCode(error: unknown, code: string): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -94,7 +91,7 @@ export function createAuthService(database = prisma, tokens: typeof authTokens =
       take: 2,
     });
     const user = matches.length === 1 ? matches[0] : undefined;
-    const hash = user?.passwordHash ?? await getDummyHash();
+    const hash = user?.passwordHash ?? dummyPasswordHash;
     let validPassword = false;
     try {
       validPassword = await argon2.verify(hash, input.password);

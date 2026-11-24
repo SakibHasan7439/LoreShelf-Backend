@@ -11,7 +11,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "prisma generate && tsc -p tsconfig.json && node --test dist/modules/book-discovery/book-discovery.test.js dist/modules/books/manual-book.test.js dist/modules/auth/auth.test.js",
+    "test": "prisma generate && tsc -p tsconfig.json && node --test dist/modules/book-discovery/book-discovery.test.js dist/modules/books/manual-book.test.js dist/modules/auth/auth.test.js dist/modules/library/library.test.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",

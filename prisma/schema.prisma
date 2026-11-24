@@ -2,8 +2,8 @@
 // The datasource URL is configured in prisma.config.ts.
 
 generator client {
-  provider           = "prisma-client"
-  output             = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
   importFileExtension = "ts"
 }
 
@@ -55,33 +55,33 @@ enum CoverTheme {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  name         String?    @db.VarChar(120)
-  email        String     @unique @db.VarChar(320)
-  passwordHash String?    @db.VarChar(255)
-  avatar       String?    @db.Text
-  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
-  books        UserBook[]
-  shelves      Shelf[]
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String?          @db.VarChar(120)
+  email           String           @unique @db.VarChar(320)
+  passwordHash    String?          @db.VarChar(255)
+  avatar          String?          @db.Text
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  books           UserBook[]
+  shelves         Shelf[]
   refreshSessions RefreshSession[]
 
   @@map("users")
 }
 
 model RefreshSession {
-  id               String          @id @default(uuid()) @db.Uuid
-  userId           String          @db.Uuid
-  refreshTokenHash String          @unique @db.VarChar(64)
-  familyId         String          @db.Uuid
-  expiresAt        DateTime        @db.Timestamptz(6)
-  revokedAt        DateTime?       @db.Timestamptz(6)
-  createdAt        DateTime        @default(now()) @db.Timestamptz(6)
-  lastUsedAt       DateTime?       @db.Timestamptz(6)
-  replacedBySessionId String?      @unique @db.Uuid
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedBy       RefreshSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
-  replaces         RefreshSession? @relation("SessionRotation")
+  id                  String          @id @default(uuid()) @db.Uuid
+  userId              String          @db.Uuid
+  refreshTokenHash    String          @unique @db.VarChar(64)
+  familyId            String          @db.Uuid
+  expiresAt           DateTime        @db.Timestamptz(6)
+  revokedAt           DateTime?       @db.Timestamptz(6)
+  createdAt           DateTime        @default(now()) @db.Timestamptz(6)
+  lastUsedAt          DateTime?       @db.Timestamptz(6)
+  replacedBySessionId String?         @unique @db.Uuid
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy          RefreshSession? @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  replaces            RefreshSession? @relation("SessionRotation")
 
   @@index([userId, familyId])
   @@index([familyId, revokedAt])
@@ -121,11 +121,11 @@ model Book {
 }
 
 model Author {
-  id        String       @id @default(uuid()) @db.Uuid
-  name      String       @db.VarChar(255)
-  normalizedName String  @unique @db.VarChar(255)
-  createdAt DateTime     @default(now()) @db.Timestamptz(6)
-  books     BookAuthor[]
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String       @db.VarChar(255)
+  normalizedName String       @unique @db.VarChar(255)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  books          BookAuthor[]
 
   @@index([name])
   @@map("authors")
@@ -148,26 +148,26 @@ model BookAuthor {
 // User-specific library state. A shared catalog Book can be in many users'
 // libraries, but a given user can add a given edition only once.
 model UserBook {
-  id              String          @id @default(uuid()) @db.Uuid
-  userId          String          @db.Uuid
-  bookId          String          @db.Uuid
-  ownership       Ownership       @default(WISHLIST)
-  readingStatus   ReadingStatus   @default(WANT_TO_READ)
-  personalNote    String?         @db.Text
-  isFavorite      Boolean         @default(false)
-  rating          Int?            @db.SmallInt
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  bookId          String           @db.Uuid
+  ownership       Ownership        @default(WISHLIST)
+  readingStatus   ReadingStatus    @default(WANT_TO_READ)
+  personalNote    String?          @db.Text
+  isFavorite      Boolean          @default(false)
+  rating          Int?             @db.SmallInt
   currentPage     Int?
-  addedAt         DateTime        @default(now()) @db.Timestamptz(6)
-  purchaseDate    DateTime?       @db.Date
-  purchasePrice   Decimal?        @db.Decimal(10, 2)
-  finishedAt      DateTime?       @db.Date
+  addedAt         DateTime         @default(now()) @db.Timestamptz(6)
+  purchaseDate    DateTime?        @db.Date
+  purchasePrice   Decimal?         @db.Decimal(10, 2)
+  finishedAt      DateTime?        @db.Date
   discoverySource DiscoverySource?
   priority        BookPriority?
-  customCoverUri  String?         @db.Text
+  customCoverUri  String?          @db.Text
   coverTheme      CoverTheme?
-  updatedAt       DateTime        @updatedAt @db.Timestamptz(6)
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book            Book            @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book             @relation(fields: [bookId], references: [id], onDelete: Restrict)
   shelves         UserBookShelf[]
 
   @@unique([userId, bookId])

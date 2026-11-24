@@ -241,6 +241,16 @@ test('logout revokes a session and protected me rejects missing, invalid, expire
       body: JSON.stringify({ refreshToken: initial.refreshToken }),
     });
     assert.equal(logout.status, 200);
+    const repeatedLogout = await fetch(`${base}/logout`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: initial.refreshToken }),
+    });
+    assert.equal(repeatedLogout.status, 200);
+    const unknownLogout = await fetch(`${base}/logout`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: 'A'.repeat(43) }),
+    });
+    assert.equal(unknownLogout.status, 200);
     const revokedResponse = await fetch(`${base}/me`, { headers: { authorization: `Bearer ${initial.accessToken}` } });
     assert.equal(revokedResponse.status, 401);
   });

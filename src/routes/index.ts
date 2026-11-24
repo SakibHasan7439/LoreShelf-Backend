@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { bookDiscoveryRouter } from '../modules/book-discovery/book-discovery.routes';
 import { authRouter } from '../modules/auth/auth.routes';
 import { booksRouter } from '../modules/books/books.routes';
+import { libraryRouter } from '../modules/library/library.routes';
 import { healthRouter } from './health.routes';
 
 /**
@@ -15,3 +16,4 @@ apiRouter.use('/health', healthRouter);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/books', bookDiscoveryRouter);
 apiRouter.use('/books', booksRouter);
+apiRouter.use('/library', libraryRouter);

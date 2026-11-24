@@ -3,7 +3,8 @@ import rateLimit from 'express-rate-limit';
 
 import { env } from '../../config/env';
 import { authService } from './auth.service';
-import { createAuthMiddleware, requireAuth } from './auth.middleware';
+import { requireAuth } from './auth.middleware';
+import type { createAuthMiddleware } from './auth.middleware';
 import { loginSchema, logoutSchema, refreshSchema, registerSchema } from './auth.types';
 
 type AuthMiddleware = ReturnType<typeof createAuthMiddleware>;
